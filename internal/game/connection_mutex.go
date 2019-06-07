@@ -47,6 +47,27 @@ func (conn *Connection) setDisconnected() {
 	conn.time = time.Now()
 }
 
+// SetConnected set _disconnected false
+func (conn *Connection) SetConnected() {
+	if conn._disconnected && conn.InRoom() {
+		_, isPlayer := conn.Room().Search(conn)
+		if isPlayer {
+			pa := *conn.Room().addAction(conn.ID(), ActionConnectAsPlayer)
+			conn.Room().sendAction(pa, conn.Room().All)
+			//conn.Room().sendPlayerEnter(*conn, conn.Room().All)
+		} else {
+			pa := *conn.Room().addAction(conn.ID(), ActionConnectAsObserver)
+			conn.Room().sendAction(pa, conn.Room().All)
+			//conn.Room().sendObserverEnter(*conn, conn.Room().All)
+		}
+	}
+	conn.disconnectedM.Lock()
+	conn._disconnected = false
+	conn.disconnectedM.Unlock()
+	//fmt.Println("!!!!!!!!!!!!!!!!!!!1connected", time.Now())
+	conn.time = time.Now()
+}
+
 // Room return   '_room' field
 func (conn *Connection) Room() *Room {
 	if conn.done() {

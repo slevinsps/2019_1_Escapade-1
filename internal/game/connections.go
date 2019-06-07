@@ -44,23 +44,19 @@ func (conns *Connections) Free() {
 	conns.capacityM.Unlock()
 }
 
-// Remove delete element and decrement size if element
-// exists in map
-func (conns *Connections) Remove(conn *Connection, onlyIfDisconnected bool) bool {
-	fmt.Println("lets find")
+// Remove -> FastRemove
+func (conns *Connections) FastRemove(conn *Connection) bool {
+	if conn == nil {
+		panic("123123123")
+		return false
+	}
 	conn, i := conns.SearchByID(conn.ID())
+	fmt.Println("remove conn", i)
 	if i < 0 {
 		return false
 	}
-	//fmt.Println("find, set disconnected", i)
-	//conn.setDisconnected()
-	if onlyIfDisconnected && !conns.RGet()[i].Disconnected() {
-		return false
-	}
 	conns.remove(i)
-	fmt.Println("delete о_О")
 	return true
-	//sendError(conn, "Remove", "You disconnected ")
 }
 
 // Add try add element if its possible. Return bool result

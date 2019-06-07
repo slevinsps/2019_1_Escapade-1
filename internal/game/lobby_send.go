@@ -1,8 +1,6 @@
 package game
 
 import (
-	"fmt"
-
 	"github.com/go-park-mail-ru/2019_1_Escapade/internal/models"
 	"github.com/go-park-mail-ru/2019_1_Escapade/internal/utils"
 )
@@ -41,7 +39,6 @@ func (lobby *Lobby) greet(conn *Connection) {
 			Room:  conn.Room(),
 		},
 	}
-	fmt.Println("greet")
 	conn.SendInformation(response)
 }
 
@@ -94,6 +91,23 @@ func (lobby *Lobby) sendRoomUpdate(room Room, predicate SendPredicate) {
 		Value: room.JSON(),
 	}
 	lobby.send(response, predicate)
+}
+
+func (lobby *Lobby) sendRoomToOne(room Room, conn Connection) {
+	if lobby.done() {
+		return
+	}
+	lobby.wGroup.Add(1)
+	defer func() {
+		lobby.wGroup.Done()
+		utils.CatchPanic("lobby sendRoomUpdate")
+	}()
+
+	response := models.Response{
+		Type:  "LobbyRoomUpdate",
+		Value: room.JSON(),
+	}
+	conn.SendInformation(response)
 }
 
 func (lobby *Lobby) sendRoomDelete(room Room, predicate SendPredicate) {

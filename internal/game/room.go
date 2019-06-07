@@ -17,7 +17,13 @@ const (
 	StatusFlagPlacing   = 2
 	StatusRunning       = 3
 	StatusFinished      = 4
+	StatusHistory       = 5
 )
+
+type ConnectionAction struct {
+	conn   *Connection
+	action int
+}
 
 // Room consist of players and observers, field and history
 type Room struct {
@@ -51,7 +57,8 @@ type Room struct {
 	Date       time.Time
 	chanFinish chan struct{}
 
-	chanStatus chan int
+	chanStatus     chan int
+	chanConnection chan ConnectionAction
 
 	play    *time.Timer
 	prepare *time.Timer
@@ -61,7 +68,6 @@ type Room struct {
 
 // NewRoom return new instance of room
 func NewRoom(rs *models.RoomSettings, id string, lobby *Lobby) (*Room, error) {
-	fmt.Println("NewRoom rs = ", *rs)
 	if !rs.AreCorrect() {
 		return nil, re.ErrorInvalidRoomSettings()
 	}
@@ -93,7 +99,16 @@ func (room *Room) Init(rs *models.RoomSettings, id string, lobby *Lobby) {
 	room.Settings = rs
 
 	room.ID = id
+
+	room.Observers = NewConnections(room.Settings.Observers)
+
+	room.chanFinish = make(chan struct{})
+	room.chanStatus = make(chan int)
+	room.chanConnection = make(chan ConnectionAction)
+
 	room.Restart()
+
+	go room.runRoom()
 
 	return
 }
@@ -102,9 +117,14 @@ func (room *Room) Init(rs *models.RoomSettings, id string, lobby *Lobby) {
 func (room *Room) Restart() {
 
 	field := NewField(room.Settings)
+
+	playersConns := room.Players.Connections.RGet()
+	for _, conn := range playersConns {
+		room.Observers.Add(conn, false)
+	}
 	room.Players.Refresh(*field)
 
-	room.Observers = NewConnections(room.Settings.Observers)
+	//room.Observers = NewConnections(room.Settings.Observers)
 
 	room.historyM.Lock()
 	room._history = make([]*PlayerAction, 0)
@@ -123,11 +143,8 @@ func (room *Room) Restart() {
 
 	room.Field = field
 
-	room.Date = time.Now()
-	room.chanFinish = make(chan struct{})
-	room.chanStatus = make(chan int)
-
-	go room.runRoom()
+	loc, _ := time.LoadLocation("Europe/Moscow")
+	room.Date = time.Now().In(loc)
 
 	return
 }

@@ -65,19 +65,28 @@ func (room *Room) sendGameOver(timer bool, predicate SendPredicate) {
 		Value: struct {
 			Players []Player `json:"players"`
 			Cells   []Cell   `json:"cells"`
-			Winner  int      `json:"winner"`
+			Winners []int    `json:"winners"`
 			Timer   bool     `json:"timer"`
 		}{
 			Players: room.Players.RPlayers(),
 			Cells:   cells,
-			Winner:  room.Winner(),
+			Winners: room.Winners(),
 			Timer:   timer,
 		},
 	}
 	room.send(response, predicate)
 }
 
-func (room *Room) sendNewCells(cells []Cell, predicate SendPredicate) {
+// sendTAIRPeople send players, observers and history to all in room
+func sendAccountTaken(conn Connection) {
+
+	response := models.Response{
+		Type: "AccountTaken",
+	}
+	conn.SendInformation(response)
+}
+
+func (room *Room) sendNewCells(predicate SendPredicate, cells ...Cell) {
 	if room.done() {
 		return
 	}
@@ -169,15 +178,11 @@ func (room *Room) sendStatus(predicate SendPredicate) {
 	}()
 
 	var leftTime int
-	fmt.Println(" stat:", room.Settings.TimeToPrepare, room.Settings.TimeToPlay, int(time.Since(room.Date).Seconds()))
 	if room.Status == StatusFlagPlacing {
 		leftTime = room.Settings.TimeToPrepare - int(time.Since(room.Date).Seconds())
-
-		fmt.Println(" StatusFlagPlacing leftTime:", leftTime)
 	}
 	if room.Status == StatusRunning {
 		leftTime = room.Settings.TimeToPlay - int(time.Since(room.Date).Seconds())
-		fmt.Println(" StatusRunning leftTime:", leftTime)
 	}
 	response := models.Response{
 		Type: "RoomStatus",
@@ -192,6 +197,39 @@ func (room *Room) sendStatus(predicate SendPredicate) {
 		},
 	}
 	room.send(response, predicate)
+}
+
+func (room *Room) sendStatusOne(conn Connection) {
+	if room.done() {
+		return
+	}
+	room.wGroup.Add(1)
+	defer func() {
+		room.wGroup.Done()
+		utils.CatchPanic("room_send.go RoomStatus()")
+	}()
+
+	var leftTime int
+	if room.Status == StatusFlagPlacing {
+		leftTime = room.Settings.TimeToPrepare - int(time.Since(room.Date).Seconds())
+	}
+	if room.Status == StatusRunning {
+		leftTime = room.Settings.TimeToPlay - int(time.Since(room.Date).Seconds())
+	}
+	response := models.Response{
+		Type: "RoomStatus",
+		Value: struct {
+			ID     string `json:"id"`
+			Status int    `json:"status"`
+			Time   int    `json:"time"`
+		}{
+			ID:     room.ID,
+			Status: room.Status,
+			Time:   leftTime,
+		},
+	}
+	fmt.Println("status send to ", conn.ID())
+	conn.SendInformation(response)
 }
 
 // sendTAIRHistory send actions history to all in room
@@ -285,5 +323,6 @@ func (room *Room) greet(conn *Connection, isPlayer bool) {
 			IsPlayer: isPlayer,
 		},
 	}
+	fmt.Println("room send to ", conn.ID())
 	conn.SendInformation(response)
 }

@@ -19,7 +19,8 @@
 			"http://localhost:8080",
 			"http://localhost:3001",
 			"http://localhost:3002",
-			"https://escapade-frontend.herokuapp.com"
+			"https://escapade-frontend.herokuapp.com",
+			"https://explosion.team"
 		],
 		"headers": [
 			"Content-type"
@@ -59,7 +60,7 @@
 		"writeWait": 60,
 		"pongWait": 10,
 		"pingPeriod": 9,
-		"maxMessageSize": 512,
+		"maxMessageSize": 4096,
 		"readBufferSize": 1024,
 		"writeBufferSize": 1024
 	}

@@ -7,10 +7,10 @@ import (
 	re "github.com/go-park-mail-ru/2019_1_Escapade/internal/return_errors"
 )
 
-// Winner determine who won the game
-func (room *Room) Winner() (idWin int) {
+// Winners determine who won the game
+func (room *Room) Winners() (winners []int) {
 	if room.done() {
-		return 0
+		return nil
 	}
 	room.wGroup.Add(1)
 	defer func() {
@@ -20,13 +20,31 @@ func (room *Room) Winner() (idWin int) {
 	max := 0.
 
 	players := room.Players.RPlayers()
-	for id, player := range players {
-		if player.Points > max {
+	for _, player := range players {
+		if player.Points > max && !player.Died {
 			max = player.Points
-			idWin = id
 		}
 	}
+
+	winners = make([]int, 0)
+	for index, player := range players {
+		if player.Points == max && !player.Died {
+			max = player.Points
+			winners = append(winners, index)
+		}
+	}
+
 	return
+}
+
+// Winner check id in the winners slice
+func (room *Room) Winner(winners []int, find int) bool {
+	for i := range winners {
+		if find == i {
+			return true
+		}
+	}
+	return false
 }
 
 // FlagFound is called, when somebody find cell flag
@@ -50,7 +68,7 @@ func (room *Room) FlagFound(founder Connection, found *Cell) {
 		return
 	}
 
-	room.Players.IncreasePlayerPoints(founder.Index(), 30)
+	room.Players.IncreasePlayerPoints(founder.Index(), 300)
 
 	killConn, index := room.Players.Connections.SearchByID(which)
 	fmt.Println(killConn.User.Name, "was found by", founder.User.Name)
@@ -75,8 +93,9 @@ func (room *Room) Kill(conn *Connection, action int) {
 		room.wGroup.Done()
 	}()
 
+	fmt.Println("Status", room.Status)
 	// cause all in pointers
-	if room.Status > StatusRunning {
+	if room.Status < StatusFlagPlacing && room.Status > StatusRunning {
 		return
 	}
 
@@ -84,7 +103,12 @@ func (room *Room) Kill(conn *Connection, action int) {
 		room.SetFinished(conn)
 
 		cell := room.Players.Flag(conn.Index())
-		room.Field.SetCellFlagTaken(&cell.Cell)
+		//room.Field.SetCellFlagTaken(&cell.Cell)
+
+		cells := make([]Cell, 0)
+		room.Field.saveCell(&cell.Cell, &cells)
+
+		room.sendNewCells(room.All, cell.Cell)
 
 		if room.Players.Capacity() <= room.killed()+1 {
 			room.chanStatus <- StatusFinished
@@ -139,9 +163,6 @@ func (room *Room) SetAndSendNewCell(conn Connection) {
 		found, _ = room.flagExists(cell, nil)
 	}
 	if room.Players.SetFlag(conn, cell) {
-		//room.prepare.Stop()
-		//room.StartGame()
-		//
 		room.chanStatus <- StatusRunning
 	}
 	response := models.RandomFlagSet(cell)
@@ -178,14 +199,17 @@ func (room *Room) SetFlag(conn *Connection, cell *Cell) bool {
 	}
 
 	if found, prevConn := room.flagExists(*cell, conn); found {
+		pa := *room.addAction(conn.ID(), ActionFlagСonflict)
+		room.sendAction(pa, room.All)
 		go room.SetAndSendNewCell(*conn)
 		go room.SetAndSendNewCell(*prevConn)
 		return true
 	}
 
+	pa := *room.addAction(conn.ID(), ActionFlagSet)
+	room.sendAction(pa, room.All)
+
 	if room.Players.SetFlag(*conn, *cell) {
-		//room.prepare.Stop()
-		//room.StartGame()
 		room.chanStatus <- StatusRunning
 	}
 	return true
@@ -209,8 +233,6 @@ func (room *Room) FillField() {
 	defer func() {
 		room.wGroup.Done()
 	}()
-
-	fmt.Println("fillField", room.Field.Height, room.Field.Width, len(room.Field.Matrix))
 
 	room.Field.Zero()
 	room.setFlags()

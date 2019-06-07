@@ -1,9 +1,5 @@
 package game
 
-import (
-	"fmt"
-)
-
 // Rooms - slice of rooms with capacity
 type Rooms struct {
 	Capacity int     `json:"capacity"`
@@ -39,7 +35,7 @@ func (onlinePlayers *OnlinePlayers) Init(field *Field) {
 			if room == nil {
 				continue
 			}
-			go room.Leave(conn, ActionBackToLobby)
+			room.LeavePlayer(conn)
 			continue
 		}
 		onlinePlayers.SetPlayer(i, *NewPlayer(conn.User.ID))
@@ -103,24 +99,29 @@ func (onlinePlayers *OnlinePlayers) Empty() bool {
 
 // Add try add element if its possible. Return bool result
 // if element not exists it will be create, otherwise it will change its value
-func (onlinePlayers *OnlinePlayers) Add(conn *Connection, kill bool) bool {
-	if conn == nil {
-		panic(1)
-	}
+func (onlinePlayers *OnlinePlayers) Add(conn *Connection, cell Cell, kill bool, recover bool) bool {
+	// if conn == nil {
+	// 	panic(1)
+	// }
 	i := onlinePlayers.Connections.Add(conn, kill)
 	if i < 0 {
 		return false
 	}
 	onlinePlayers.SetPlayerID(i, conn.ID())
 	conn.SetIndex(i)
+
+	if !recover {
+
+		if !onlinePlayers._flags[i].Set {
+			onlinePlayers._flags[i] = Flag{
+				Cell: cell,
+				Set:  false,
+			}
+		}
+	}
+
 	//onlinePlayers.Connections.Get[i].SetIndex(i)
 	return true
-}
-
-// Remove delete element and decrement size if element
-// exists in map
-func (onlinePlayers *OnlinePlayers) Remove(conn *Connection, disconnect bool) bool {
-	return onlinePlayers.Connections.Remove(conn, disconnect)
 }
 
 // EnoughPlace check that you can add more elements
@@ -150,17 +151,15 @@ func (rooms *Rooms) SearchRoom(id string) (i int, room *Room) {
 func (rooms *Rooms) SearchPlayer(new *Connection, mustNotFinished bool) (int, *Room) {
 	for _, room := range rooms.Get {
 		i := room.Players.SearchIndexPlayer(new) //playersSearchIndexPlayer(new)
-		fmt.Println("room", room.ID, i)
+
 		// cant found
 		if i < 0 {
 			continue
 		}
 		if mustNotFinished && room.Players.Player(i).Finished {
-			fmt.Println("next!!!")
 			continue
 		}
 
-		fmt.Println("happy return")
 		return i, room
 	}
 	return -1, nil
